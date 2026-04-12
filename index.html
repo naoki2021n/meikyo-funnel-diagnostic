@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>『明鏡』実践！ファネル弱点診断</title>
+  <style>
+    :root {
+      --primary-color: #1a252f;
+      --accent-color: #d35400;
+      --secondary-color: #2980b9;
+      --bg-color: #f4f6f7;
+      --text-color: #333;
+      --card-bg: #fff;
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      line-height: 1.6;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .container {
+      background-color: var(--card-bg);
+      max-width: 650px;
+      width: 100%;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.08);
+      overflow: hidden;
+    }
+
+    .header {
+      background-color: var(--primary-color);
+      color: white;
+      padding: 40px 20px;
+      text-align: center;
+      position: relative;
+    }
+    
+    .header::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 4px;
+      background: linear-gradient(90deg, var(--accent-color), var(--secondary-color));
+    }
+
+    .header h1 {
+      font-size: 1.8rem;
+      margin-bottom: 15px;
+      letter-spacing: 1px;
+    }
+
+    .header p {
+      font-size: 0.95rem;
+      opacity: 0.9;
+      line-height: 1.8;
+    }
+
+    .content {
+      padding: 35px;
+    }
+
+    .question-box {
+      display: none;
+      animation: fadeIn 0.3s ease-in-out;
+    }
+
+    .question-box.active {
+      display: block;
+    }
+    
+    .phase-badge {
+      display: inline-block;
+      background-color: #eee;
+      color: #555;
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      margin-bottom: 15px;
+    }
+
+    .question-title {
+      font-size: 1.15rem;
+      font-weight: bold;
+      margin-bottom: 25px;
+      color: var(--primary-color);
+      line-height: 1.5;
+    }
+
+    .options {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .btn {
+      background-color: white;
+      border: 2px solid #e0e6ed;
+      color: var(--text-color);
+      padding: 14px 16px;
+      font-size: 0.95rem;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: left;
+      font-weight: 500;
+    }
+
+    .btn:hover {
+      border-color: var(--secondary-color);
+      background-color: rgba(41, 128, 185, 0.05);
+    }
+
+    .btn-back {
+      background: none;
+      border: none;
+      color: #7f8c8d;
+      cursor: pointer;
+      font-size: 0.9rem;
+      text-decoration: underline;
+      padding: 10px;
+      transition: color 0.2s;
+    }
+
+    .btn-back:hover {
+      color: var(--primary-color);
+    }
+
+    .btn-primary {
+      background-color: var(--accent-color);
+      color: white;
+      border: none;
+      text-align: center;
+      font-weight: bold;
+      padding: 16px;
+      width: 100%;
+      font-size: 1.1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .btn-primary:hover {
+      background-color: #e67e22;
+    }
+
+    .progress-wrapper {
+      margin-bottom: 30px;
+    }
+    
+    .progress-text {
+      text-align: right;
+      font-size: 0.85rem;
+      color: #7f8c8d;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+
+    .progress-bar {
+      height: 8px;
+      background-color: #ecf0f1;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background-color: var(--secondary-color);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    .result-box {
+      display: none;
+      animation: fadeIn 0.5s ease-in-out;
+    }
+
+    .result-box.active {
+      display: block;
+    }
+
+    .result-badge {
+      display: inline-block;
+      background-color: #fdf2e9;
+      color: var(--accent-color);
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-weight: bold;
+      font-size: 0.9rem;
+      margin-bottom: 20px;
+      border: 1px solid #fae5d3;
+    }
+
+    .result-title {
+      font-size: 1.6rem;
+      color: var(--primary-color);
+      margin-bottom: 25px;
+      border-bottom: 2px solid #eee;
+      padding-bottom: 10px;
+    }
+    
+    .score-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-bottom: 25px;
+    }
+    
+    .score-card {
+      background-color: #f8f9fa;
+      padding: 15px;
+      border-radius: 8px;
+      text-align: center;
+      border: 1px solid #eee;
+    }
+    
+    .score-card h3 {
+      font-size: 0.9rem;
+      color: #7f8c8d;
+      margin-bottom: 5px;
+    }
+    
+    .score-card .score-value {
+      font-size: 1.8rem;
+      font-weight: bold;
+      color: var(--primary-color);
+    }
+
+    .result-section {
+      margin-bottom: 25px;
+    }
+    
+    .result-section h4 {
+      color: var(--secondary-color);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+    }
+    
+    .result-section h4::before {
+      content: '';
+      display: inline-block;
+      width: 4px;
+      height: 16px;
+      background-color: var(--secondary-color);
+      margin-right: 8px;
+      border-radius: 2px;
+    }
+
+    .result-desc {
+      background-color: #fff;
+      border: 1px solid #e0e6ed;
+      padding: 15px;
+      font-size: 0.95rem;
+      border-radius: 8px;
+      color: #444;
+      line-height: 1.7;
+    }
+    
+    .quote {
+      font-style: italic;
+      background-color: #f9f9f9;
+      padding: 12px 15px;
+      border-left: 4px solid #bdc3c7;
+      margin: 15px 0;
+      font-size: 0.9rem;
+      color: #555;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @media (max-width: 480px) {
+      .score-grid {
+        grid-template-columns: 1fr;
+      }
+      .btn {
+        padding: 12px 14px;
+        font-size: 0.9rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="header">
+      <h1>『明鏡』実践！ファネル弱点診断</h1>
+      <p>あなたのビジネスの「穴」はどこ？<br>イケハヤ氏の教材『明鏡』の理論をもとに、<br>認知から購入までのファネル構築度を診断します。</p>
+    </div>
+
+    <div class="content">
+      <div id="start-screen" class="question-box active">
+        <p style="margin-bottom: 15px; font-weight: bold; color: var(--primary-color);">せっかくのいい商品も、届け方が悪ければ売れません。</p>
+        <p style="margin-bottom: 20px;">本診断では全8問の質問を通して、あなたのファネルにおける**「集客・育成力（認知・興味）」**と**「決定・販売力（比較・購入）」**の2軸を測定し、どこに漏れがあるかを見極めます。</p>
+        <div class="quote">「マーケティングファネルは、そのままマーケティング戦略の『設計図』になります。」ー 明鏡 第2章より</div>
+        <button class="btn btn-primary" style="margin-top: 15px;" onclick="startQuiz()">診断をスタートする</button>
+      </div>
+
+      <div id="quiz-container" style="display: none;">
+        <div class="progress-wrapper">
+          <div class="progress-text" id="progress-text">Q 1 / 8</div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="progress"></div>
+          </div>
+        </div>
+        <div id="question-area"></div>
+      </div>
+
+      <div id="result-screen" class="result-box">
+        <span class="result-badge" id="overall-eval">診断完了</span>
+        <h2 class="result-title">ファネル診断レポート</h2>
+        
+        <div class="score-grid">
+          <div class="score-card">
+            <h3>集客・育成力 (認知・興味)</h3>
+            <div class="score-value" id="acquisition-score">0%</div>
+          </div>
+          <div class="score-card">
+            <h3>決定・販売力 (比較・購入)</h3>
+            <div class="score-value" id="sales-score">0%</div>
+          </div>
+        </div>
+
+        <div class="result-section">
+          <h4>前半：認知・興味フェーズの分析</h4>
+          <div class="result-desc" id="acquisition-feedback"></div>
+        </div>
+        
+        <div class="result-section">
+          <h4>後半：比較・購入フェーズの分析</h4>
+          <div class="result-desc" id="sales-feedback"></div>
+        </div>
+
+        <div class="quote">「マーケティングの理想は『購入時点で比較・検討させない』という境地にあります。」</div>
+        <button class="btn btn-primary" style="margin-top: 10px;" onclick="location.reload()">最初からやり直す</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const optionsTemplate = [
+      { label: "自信を持って「できている」と言える", score: 3 },
+      { label: "ある程度はできているが、改善の余地がある", score: 2 },
+      { label: "あまりできておらず、課題に感じている", score: 1 },
+      { label: "全くできていない・これから取り組む", score: 0 }
+    ];
+
+    const questions = [
+      // 認知・興味フェーズ
+      {
+        phase: "【認知フェーズ】",
+        text: "Q1. あなたの商品やサービスは、ターゲット層に十分に知られ、インプレッション（露出）を獲得できていますか？",
+        options: optionsTemplate
+      },
+      {
+        phase: "【認知フェーズ】",
+        text: "Q2. 届けたい相手（本当に興味を持ってくれそうな層）を的確に絞り込み、見当違いな層へのアピールを避けていますか？",
+        options: optionsTemplate
+      },
+      {
+        phase: "【興味・関心フェーズ】",
+        text: "Q3. 発信を見たフォロワーから、「興味がある」という反応（いいね、リプライ、メルマガ登録など）を安定して得られていますか？",
+        options: optionsTemplate
+      },
+      {
+        phase: "【興味・関心フェーズ】",
+        text: "Q4. メルマガや音声配信などを用いて、見込み客と「長期的かつ複数回」接触できる仕組み（ザイオンス効果の活用）はありますか？",
+        options: optionsTemplate
+      },
+      // 比較・購入フェーズ
+      {
+        phase: "【比較・検討フェーズ】",
+        text: "Q5. 顧客が他社と比較した際、「この人だから買う」と迷わず選んでもらえるような、明確で圧倒的な独自の強みは提示できていますか？",
+        options: optionsTemplate
+      },
+      {
+        phase: "【比較・検討フェーズ】",
+        text: "Q6. あなたの商品に対する、購入者からの「良質なクチコミやレビュー」は十分に蓄積されていますか？",
+        options: optionsTemplate
+      },
+      {
+        phase: "【購入・成約フェーズ】",
+        text: "Q7. 販売ページ（LPや公式サイト）は、顧客が不安を感じて離脱しないよう、情報が整理されスムーズに購入できる設計になっていますか？",
+        options: optionsTemplate
+      },
+      {
+        phase: "【購入・成約フェーズ】",
+        text: "Q8. ただ売上を追うだけでなく、ミスマッチを防ぐために「買うべきではない人には売らない」という明確な線引きと案内ができていますか？",
+        options: optionsTemplate
+      }
+    ];
+
+    let currentQuestion = 0;
+    let answers = []; // 各質問のスコアを保存する配列
+    
+    const MAX_SCORE_PER_SECTION = 12; // 4問 × 3点
+
+    function startQuiz() {
+      document.getElementById('start-screen').classList.remove('active');
+      document.getElementById('quiz-container').style.display = 'block';
+      renderQuestion();
+    }
+
+    function renderQuestion() {
+      const q = questions[currentQuestion];
+      const progress = (currentQuestion / questions.length) * 100;
+      
+      document.getElementById('progress').style.width = `${progress}%`;
+      document.getElementById('progress-text').innerText = `Q ${currentQuestion + 1} / ${questions.length}`;
+
+      let optionsHtml = '';
+      q.options.forEach((opt) => {
+        optionsHtml += `<button class="btn" onclick="answer(${opt.score})">${opt.label}</button>`;
+      });
+
+      let backBtnHtml = '';
+      if (currentQuestion > 0) {
+        backBtnHtml = `<button class="btn-back" onclick="goBack()">← 1つ前の質問に戻る</button>`;
+      }
+
+      const html = `
+        <div class="question-box active">
+          <span class="phase-badge">${q.phase}</span>
+          <div class="question-title">${q.text}</div>
+          <div class="options">
+            ${optionsHtml}
+          </div>
+          <div style="margin-top: 20px; text-align: center;">
+            ${backBtnHtml}
+          </div>
+        </div>
+      `;
+      document.getElementById('question-area').innerHTML = html;
+    }
+
+    function answer(score) {
+      answers[currentQuestion] = score;
+      currentQuestion++;
+
+      if (currentQuestion < questions.length) {
+        renderQuestion();
+      } else {
+        showResult();
+      }
+    }
+
+    function goBack() {
+      if (currentQuestion > 0) {
+        currentQuestion--;
+        renderQuestion();
+      }
+    }
+
+    function showResult() {
+      document.getElementById('quiz-container').style.display = 'none';
+      
+      // 前半4問（認知・興味）と後半4問（比較・購入）のスコア計算
+      const acquisitionScore = answers.slice(0, 4).reduce((a, b) => a + b, 0);
+      const salesScore = answers.slice(4, 8).reduce((a, b) => a + b, 0);
+      
+      const acquisitionPercent = Math.round((acquisitionScore / MAX_SCORE_PER_SECTION) * 100);
+      const salesPercent = Math.round((salesScore / MAX_SCORE_PER_SECTION) * 100);
+      
+      document.getElementById('acquisition-score').innerText = `${acquisitionPercent}%`;
+      document.getElementById('sales-score').innerText = `${salesPercent}%`;
+      
+      // 総合評価バッジ
+      const totalScore = acquisitionScore + salesScore;
+      const evalBadge = document.getElementById('overall-eval');
+      if(totalScore >= 20) {
+        evalBadge.innerText = "Sランク：ゴールデンファネル完成";
+        evalBadge.style.backgroundColor = "#e8f8f5";
+        evalBadge.style.color = "#1abc9c";
+        evalBadge.style.border = "1px solid #d1f2eb";
+      } else if(totalScore >= 14) {
+        evalBadge.innerText = "Aランク：優れたファネル設計";
+      } else if(totalScore >= 8) {
+        evalBadge.innerText = "Bランク：ファネルに漏れあり";
+      } else {
+        evalBadge.innerText = "Cランク：動線の再設計が急務";
+        evalBadge.style.backgroundColor = "#fdedec";
+        evalBadge.style.color = "#e74c3c";
+        evalBadge.style.border = "1px solid #fadbd8";
+      }
+
+      // 集客力（認知・興味）のフィードバック
+      let acqText = "";
+      if (acquisitionPercent === 100) {
+        acqText = "<strong>【完璧な集客・育成フローです】</strong><br>見当違いな層にアピールすることなく、本当にあなたの商品を必要とする人にしっかりと情報が届いています。長期的な接触（メルマガや音声配信）によって、見込み客の興味関心を惹きつける仕組みが美しく機能しています。";
+      } else if (acquisitionPercent >= 60) {
+        acqText = "<strong>【良い流れが作れていますが、もう一歩】</strong><br>認知は取れつつありますが、さらに「興味」へと引き上げる工夫が必要です。『明鏡』にある「単純接触効果（ザイオンス効果）」を意識し、メルマガや音声などの長尺コンテンツで、顧客との接触頻度と深さを高めていきましょう。";
+      } else {
+        acqText = "<strong>【上流で顧客が漏れています】</strong><br>「認知されていない」もしくは「的外れな層にアプローチしている」可能性が高いです。やみくもな発信（例えば意味もなくTikTokで踊るなど）を避け、まずは「誰に届けたいのか」を絞り直すことから始めてください。";
+      }
+      document.getElementById('acquisition-feedback').innerHTML = acqText;
+
+      // 販売力（比較・購入）のフィードバック
+      let salesText = "";
+      if (salesPercent === 100) {
+        salesText = "<strong>【理想的な販売導線です】</strong><br>他社と比較されても競合に負けず、「買うべきでない人には売らない」という確固たるスタンスが確立されています。購入時のストレスもなく、まさに「比較・検討させない」理想の着地ができています。";
+      } else if (salesPercent >= 60) {
+        salesText = "<strong>【最後のひと押しに改善の余地あり】</strong><br>ある程度売れる仕組みはありますが、比較された際に逃げられたり、LPの使いにくさで離脱されている可能性があります。クチコミの意図的な蓄積や、公式サイトの購入導線の点検を行い、取りこぼしを減らしましょう。";
+      } else {
+        salesText = "<strong>【せっかく集めた顧客を逃しています】</strong><br>認知や興味を獲得しても、最後の「売り込み」のフェーズが弱いため、売上につながっていません。あなたならではの「独自の強み」を明確にし、販売ページのリンク切れや情報の不足など、顧客が離脱する原因を徹底的に排除してください。";
+      }
+      document.getElementById('sales-feedback').innerHTML = salesText;
+
+      document.getElementById('result-screen').classList.add('active');
+    }
+  </script>
+</body>
+</html>
