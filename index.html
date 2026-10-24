@@ -122,9 +122,29 @@
       font-weight: 500;
     }
 
-    .btn:hover {
+    /* タッチ端末でホバー表示が次の質問に残らないよう、マウス操作時のみ適用 */
+    @media (hover: hover) {
+      .btn:hover {
+        border-color: var(--secondary-color);
+        background-color: rgba(41, 128, 185, 0.05);
+      }
+    }
+
+    /* 前の質問に戻ったとき、前回選んだ回答を示す */
+    .btn.selected {
       border-color: var(--secondary-color);
-      background-color: rgba(41, 128, 185, 0.05);
+      background-color: rgba(41, 128, 185, 0.1);
+    }
+
+    .btn:focus-visible,
+    .btn-back:focus-visible,
+    .btn-primary:focus-visible {
+      outline: 3px solid var(--secondary-color);
+      outline-offset: 2px;
+    }
+
+    .phrase {
+      display: inline-block;
     }
 
     .btn-back {
@@ -156,8 +176,10 @@
       transition: background-color 0.2s;
     }
 
-    .btn-primary:hover {
-      background-color: #e67e22;
+    @media (hover: hover) {
+      .btn-primary:hover {
+        background-color: #e67e22;
+      }
     }
 
     .progress-wrapper {
@@ -288,13 +310,40 @@
       to { opacity: 1; transform: translateY(0); }
     }
     
+    @media (prefers-reduced-motion: reduce) {
+      .question-box, .result-box, .progress-fill {
+        animation: none;
+        transition: none;
+      }
+    }
+
     @media (max-width: 480px) {
+      body {
+        padding: 12px;
+        align-items: flex-start;
+      }
+      .header {
+        padding: 28px 16px;
+      }
+      .header h1 {
+        font-size: 1.5rem;
+        letter-spacing: 0;
+      }
+      .header p {
+        font-size: 0.9rem;
+      }
+      .content {
+        padding: 24px 18px;
+      }
       .score-grid {
         grid-template-columns: 1fr;
       }
       .btn {
         padding: 12px 14px;
         font-size: 0.9rem;
+      }
+      .result-title {
+        font-size: 1.4rem;
       }
     }
   </style>
@@ -303,16 +352,16 @@
 
   <div class="container">
     <div class="header">
-      <h1>『明鏡』実践！ファネル弱点診断</h1>
-      <p>あなたのビジネスの「穴」はどこ？<br>イケハヤ氏の教材『明鏡』の理論をもとに、<br>認知から購入までのファネル構築度を診断します。</p>
+      <h1><span class="phrase">『明鏡』実践！</span><span class="phrase">ファネル弱点診断</span></h1>
+      <p><span class="phrase">あなたのビジネスの</span><span class="phrase">「穴」はどこ？</span><br><span class="phrase">イケハヤ氏の教材『明鏡』の</span><span class="phrase">理論をもとに、</span><br><span class="phrase">認知から購入までの</span><span class="phrase">ファネル構築度を診断します。</span></p>
     </div>
 
     <div class="content">
       <div id="start-screen" class="question-box active">
         <p style="margin-bottom: 15px; font-weight: bold; color: var(--primary-color);">せっかくのいい商品も、届け方が悪ければ売れません。</p>
-        <p style="margin-bottom: 20px;">本診断では全8問の質問を通して、あなたのファネルにおける**「集客・育成力（認知・興味）」**と**「決定・販売力（比較・購入）」**の2軸を測定し、どこに漏れがあるかを見極めます。</p>
+        <p style="margin-bottom: 20px;">本診断では全8問の質問を通して、あなたのファネルにおける<strong>「集客・育成力（認知・興味）」</strong>と<strong>「決定・販売力（比較・購入）」</strong>の2軸を測定し、どこに漏れがあるかを見極めます。</p>
         <div class="quote">「マーケティングファネルは、そのままマーケティング戦略の『設計図』になります。」ー 明鏡 第2章より</div>
-        <button class="btn btn-primary" style="margin-top: 15px;" onclick="startQuiz()">診断をスタートする</button>
+        <button type="button" class="btn btn-primary" style="margin-top: 15px;" id="start-btn">診断をスタートする</button>
       </div>
 
       <div id="quiz-container" style="display: none;">
@@ -351,7 +400,7 @@
         </div>
 
         <div class="quote">「マーケティングの理想は『購入時点で比較・検討させない』という境地にあります。」</div>
-        <button class="btn btn-primary" style="margin-top: 10px;" onclick="location.reload()">最初からやり直す</button>
+        <button type="button" class="btn btn-primary" style="margin-top: 10px;" id="restart-btn">最初からやり直す</button>
       </div>
     </div>
   </div>
@@ -414,8 +463,23 @@
     
     const MAX_SCORE_PER_SECTION = 12; // 4問 × 3点
 
+    // 質問切り替え直後のタップを無視する時間（ダブルタップで次の質問まで答えてしまうのを防ぐ）
+    const TAP_GUARD_MS = 350;
+    let renderedAt = 0;
+
+    // 要素の上端が画面外（上）に隠れていたら、見える位置までスクロールする
+    function scrollIntoViewIfHidden(el) {
+      const top = el.getBoundingClientRect().top;
+      if (top < 0) {
+        window.scrollTo({ top: window.scrollY + top - 12, behavior: 'smooth' });
+      }
+    }
+
     function startQuiz() {
+      currentQuestion = 0;
+      answers = [];
       document.getElementById('start-screen').classList.remove('active');
+      document.getElementById('result-screen').classList.remove('active');
       document.getElementById('quiz-container').style.display = 'block';
       renderQuestion();
     }
@@ -423,36 +487,59 @@
     function renderQuestion() {
       const q = questions[currentQuestion];
       const progress = (currentQuestion / questions.length) * 100;
-      
-      document.getElementById('progress').style.width = `${progress}%`;
-      document.getElementById('progress-text').innerText = `Q ${currentQuestion + 1} / ${questions.length}`;
 
-      let optionsHtml = '';
+      document.getElementById('progress').style.width = `${progress}%`;
+      document.getElementById('progress-text').textContent = `Q ${currentQuestion + 1} / ${questions.length}`;
+
+      const box = document.createElement('div');
+      box.className = 'question-box active';
+
+      const badge = document.createElement('span');
+      badge.className = 'phase-badge';
+      badge.textContent = q.phase;
+
+      const title = document.createElement('div');
+      title.className = 'question-title';
+      title.id = 'question-title';
+      title.textContent = q.text;
+
+      const options = document.createElement('div');
+      options.className = 'options';
+      options.setAttribute('role', 'group');
+      options.setAttribute('aria-labelledby', 'question-title');
       q.options.forEach((opt) => {
-        optionsHtml += `<button class="btn" onclick="answer(${opt.score})">${opt.label}</button>`;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn';
+        btn.textContent = opt.label;
+        if (answers[currentQuestion] === opt.score) {
+          btn.classList.add('selected');
+          btn.setAttribute('aria-pressed', 'true');
+        }
+        btn.addEventListener('click', () => answer(opt.score));
+        options.appendChild(btn);
       });
 
-      let backBtnHtml = '';
+      const footer = document.createElement('div');
+      footer.style.marginTop = '20px';
+      footer.style.textAlign = 'center';
       if (currentQuestion > 0) {
-        backBtnHtml = `<button class="btn-back" onclick="goBack()">← 1つ前の質問に戻る</button>`;
+        const back = document.createElement('button');
+        back.type = 'button';
+        back.className = 'btn-back';
+        back.textContent = '← 1つ前の質問に戻る';
+        back.addEventListener('click', goBack);
+        footer.appendChild(back);
       }
 
-      const html = `
-        <div class="question-box active">
-          <span class="phase-badge">${q.phase}</span>
-          <div class="question-title">${q.text}</div>
-          <div class="options">
-            ${optionsHtml}
-          </div>
-          <div style="margin-top: 20px; text-align: center;">
-            ${backBtnHtml}
-          </div>
-        </div>
-      `;
-      document.getElementById('question-area').innerHTML = html;
+      box.append(badge, title, options, footer);
+      document.getElementById('question-area').replaceChildren(box);
+      renderedAt = Date.now();
+      scrollIntoViewIfHidden(document.getElementById('quiz-container'));
     }
 
     function answer(score) {
+      if (Date.now() - renderedAt < TAP_GUARD_MS) return;
       answers[currentQuestion] = score;
       currentQuestion++;
 
@@ -480,23 +567,24 @@
       const acquisitionPercent = Math.round((acquisitionScore / MAX_SCORE_PER_SECTION) * 100);
       const salesPercent = Math.round((salesScore / MAX_SCORE_PER_SECTION) * 100);
       
-      document.getElementById('acquisition-score').innerText = `${acquisitionPercent}%`;
-      document.getElementById('sales-score').innerText = `${salesPercent}%`;
-      
+      document.getElementById('acquisition-score').textContent = `${acquisitionPercent}%`;
+      document.getElementById('sales-score').textContent = `${salesPercent}%`;
+
       // 総合評価バッジ
       const totalScore = acquisitionScore + salesScore;
       const evalBadge = document.getElementById('overall-eval');
+      evalBadge.removeAttribute('style'); // やり直したときに前回の色が残らないようにする
       if(totalScore >= 20) {
-        evalBadge.innerText = "Sランク：ゴールデンファネル完成";
+        evalBadge.textContent = "Sランク：ゴールデンファネル完成";
         evalBadge.style.backgroundColor = "#e8f8f5";
         evalBadge.style.color = "#1abc9c";
         evalBadge.style.border = "1px solid #d1f2eb";
       } else if(totalScore >= 14) {
-        evalBadge.innerText = "Aランク：優れたファネル設計";
+        evalBadge.textContent = "Aランク：優れたファネル設計";
       } else if(totalScore >= 8) {
-        evalBadge.innerText = "Bランク：ファネルに漏れあり";
+        evalBadge.textContent = "Bランク：ファネルに漏れあり";
       } else {
-        evalBadge.innerText = "Cランク：動線の再設計が急務";
+        evalBadge.textContent = "Cランク：動線の再設計が急務";
         evalBadge.style.backgroundColor = "#fdedec";
         evalBadge.style.color = "#e74c3c";
         evalBadge.style.border = "1px solid #fadbd8";
@@ -524,8 +612,13 @@
       }
       document.getElementById('sales-feedback').innerHTML = salesText;
 
-      document.getElementById('result-screen').classList.add('active');
+      const resultScreen = document.getElementById('result-screen');
+      resultScreen.classList.add('active');
+      scrollIntoViewIfHidden(resultScreen);
     }
+
+    document.getElementById('start-btn').addEventListener('click', startQuiz);
+    document.getElementById('restart-btn').addEventListener('click', startQuiz);
   </script>
 </body>
 </html>
